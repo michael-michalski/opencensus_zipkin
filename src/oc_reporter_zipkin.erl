@@ -32,6 +32,8 @@
 
 -define(DEFAULT_ZIPKIN_ADDRESS, "http://localhost:9411/api/v2/spans").
 -define(DEFAULT_LOCAL_ENDPOINT, #{<<"serviceName">> => node()}).
+-define(DEFAULT_HTTPC_HTTP_OPTIONS, []).
+-define(DEFAULT_HTTPC_OPTIONS, []).
 
 -export([init/1,
          report/2]).
@@ -39,14 +41,16 @@
 init(Opts) ->
     Address = zipkin_address(Opts),
     LocalEndpoint = local_endpoint(Opts),
-    {Address, LocalEndpoint}.
+    HttpcHttpOptions = httpc_http_options(Opts),
+    HttpcOptions = httpc_options(Opts),
+    {Address, LocalEndpoint, HttpcHttpOptions, HttpcOptions}.
 
-report(Spans, {Address, LocalEndpoint}) ->
+report(Spans, {Address, LocalEndpoint, HttpcHttpOptions, HttpcOptions}) ->
     ZSpans = [zipkin_span(Span, LocalEndpoint) || Span <- Spans],
 
     try jsx:encode(ZSpans) of
         JSON ->
-            case httpc:request(post, {Address, [], "application/json", JSON}, [], []) of
+            case httpc:request(post, {Address, [], "application/json", JSON}, HttpcHttpOptions, HttpcOptions) of
                 {ok, {{_, 202, _}, _, _}} ->
                     ok;
                 {ok, {{_, 200, _}, _, _}} ->
@@ -144,6 +148,12 @@ zipkin_address(Options) ->
 
 local_endpoint(Options) ->
     proplists:get_value(local_endpoint, Options, ?DEFAULT_LOCAL_ENDPOINT).
+
+httpc_http_options(Options) ->
+    proplists:get_value(httpc_http_options, Options, ?DEFAULT_HTTPC_HTTP_OPTIONS).
+
+httpc_options(Options) ->
+    proplists:get_value(httpc_options, Options, ?DEFAULT_HTTPC_OPTIONS).
 
 optional_fields(Span) ->
     lists:foldl(fun(Field, Acc) ->
